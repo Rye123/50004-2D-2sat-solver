@@ -1,4 +1,5 @@
 import argparse
+from collections import deque # stack for DFS
 
 
 class Literal:
@@ -87,6 +88,27 @@ class Implication_Graph:
             for i in range(1, len(self.literals)):
                 ret += "," + str(self.literals[i])
         ret += "]"
+        return ret
+    
+    def get_path(self, start:Literal)->list:
+        '''Returns a list of nodes that are strongly connected starting from start. Returns None if there is no such strongly connected path.'''
+        # i.e.: DFS from start all the way back to start.
+        # TODO: Change to: actually should search ALL strongly connected paths, and return bad if there's one that has both lit and neg
+        ret = []
+        node:Literal = self.literals[self.get_literal_id(start)]
+        q = deque(node.neighbours)
+        while len(q) > 0:
+            node = q.pop()
+            if node == start:
+                ret.append(node)
+                return ret
+            if node in ret:
+                continue
+            ret.append(node)
+            for neighbour in node.neighbours:
+                if neighbour.get_negation() in ret:
+                    continue
+                q.append(neighbour)
         return ret
 
 
