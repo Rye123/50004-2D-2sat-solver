@@ -29,7 +29,14 @@ class Implication_Graph:
     def __init__(self):
         self.literals = []
         self.bindings = {}
-        
+    
+    def get_literal_id(self, name:str):
+        '''Returns the ID of the given name in the graph, or -1 if it isn't in the graph.'''
+        try:
+            i = self.literals.index(name)
+            return i
+        except ValueError:
+            return -1
 
     def add_literal(self, literal:Literal):
         '''Adds a literal and its negation to the implication graph.'''
@@ -45,17 +52,14 @@ class Implication_Graph:
         self.bindings[lt.get_negation().name] = False
 
     def add_implication(self, lt1:Literal, lt2:Literal):
-        '''Adds the following relation to the implication graph: lt1 -> lt2'''
+        '''Adds the following relation to the implication graph: lt1 -> lt2. Throws RuntimeError if invalid operation.'''
         # locate the relevant literals in self.literals
-        try:
-            i1 = self.literals.index(lt1)
-            i2 = self.literals.index(lt2)
-            if i1 == i2:
-                raise RuntimeError("Cannot have literal imply itself.")
+        i1 = self.get_literal_id(lt1)
+        i2 = self.get_literal_id(lt2)
+        if (i1 >= 0) and (i2 >= 0) and not (i1 == i2):
             self.literals[i1].add_neighbour(self.literals[i2])
-        except:
-            raise RuntimeError("Literal not found.")
-        
+        else:
+            raise RuntimeError("Invalid add_implication operation.")
 
 
     def get_implications(self)->str:
