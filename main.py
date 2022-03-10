@@ -40,7 +40,8 @@ class Implication_Graph:
             return -1
 
     def add_literal(self, literal:Literal):
-        '''Adds a literal and its negation to the implication graph.'''
+        '''Adds a new literal and its negation to the implication graph.'''
+        literal = Literal(literal.name)
         if not literal in self:
             self.literals.append(literal)
             self.literals.append(literal.get_negation())
