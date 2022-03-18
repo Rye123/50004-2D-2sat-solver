@@ -1,5 +1,5 @@
 import argparse
-from collections import deque # stack for DFS
+from collections import deque
 
 
 class Literal:
@@ -7,6 +7,12 @@ class Literal:
     def __init__(self, name):
         self.name = name.replace("--", "")
         self.neighbours = [] # if b is a neighbour of a, then a->b.
+        self.d = None # first discovered
+        self.f = None # finished examining
+        self.color = None
+        self.parent = None
+
+        self.checked = False
     
     def get_negation(self):
         '''Returns the negation of this literal.'''
@@ -30,14 +36,14 @@ class Implication_Graph:
     def __init__(self):
         self.literals = []
         self.bindings = {}
+        self.dfs_time = -1
     
     def get_literal_id(self, name:str):
         '''Returns the ID of the given name in the graph, or -1 if it isn't in the graph.'''
-        try:
-            i = self.literals.index(name)
-            return i
-        except ValueError:
-            return -1
+        for i in range(len(self.literals)):
+            if self.literals[i].name == name:
+                return i
+        return -1
 
     def add_literal(self, literal:Literal):
         '''Adds a new literal and its negation to the implication graph.'''
@@ -56,12 +62,12 @@ class Implication_Graph:
     def add_implication(self, lt1:Literal, lt2:Literal):
         '''Adds the following relation to the implication graph: lt1 -> lt2. Throws RuntimeError if invalid operation.'''
         # locate the relevant literals in self.literals
-        i1 = self.get_literal_id(lt1)
-        i2 = self.get_literal_id(lt2)
+        i1 = self.get_literal_id(lt1.name)
+        i2 = self.get_literal_id(lt2.name)
         if (i1 >= 0) and (i2 >= 0) and not (i1 == i2):
             self.literals[i1].add_neighbour(self.literals[i2])
         else:
-            raise RuntimeError("Invalid add_implication operation.")
+            raise RuntimeError("Invalid add_implication operation of " + lt1.name + " and " + lt2.name + ". We get i1=" + str(i1) + " and i2=" + str(i2) + ".", self.literals)
 
 
     def get_implications(self)->str:
@@ -90,27 +96,70 @@ class Implication_Graph:
                 ret += "," + str(self.literals[i])
         ret += "]"
         return ret
+
+    def dfs_init(self):
+        '''initialises values for DFS'''
+        for lt in self.literals:
+            lt.color = "white"
+            lt.parent = None
+        self.dfs_time = 0
+
     
-    def get_path(self, start:Literal)->list:
-        '''Returns a list of nodes that are strongly connected starting from start. Returns None if there is no such strongly connected path.'''
-        # i.e.: DFS from start all the way back to start.
-        # TODO: Change to: actually should search ALL strongly connected paths, and return bad if there's one that has both lit and neg
+    def dfs_get_condensed(self, start:str=None):
+        '''Conducts DFS on this graph. Returns a list of condensed graphs.'''
+        # start from start if it's given, otherwise just start from first literal
         ret = []
-        node:Literal = self.literals[self.get_literal_id(start)]
-        q = deque(node.neighbours)
-        while len(q) > 0:
-            node = q.pop()
-            if node == start:
-                ret.append(node)
-                return ret
-            if node in ret:
-                continue
-            ret.append(node)
-            for neighbour in node.neighbours:
-                if neighbour.get_negation() in ret:
-                    continue
-                q.append(neighbour)
+        if start:
+            start_lt = self.literals[self.get_literal_id(start)]
+            self.dfs_visit(start_lt)
+            ret.append(start)
+        for lt in self.literals:
+            if lt.color == "white":
+                self.dfs_visit(lt)
+                ret.append(lt)
+        
+        #return sorted(self.literals, reverse=True, key=lambda lt : lt.f)
         return ret
+    
+    def dfs_get_sorted(self, start:str=None):
+        '''Conducts DFS on this graph. Returns the possible paths of the graph.'''
+        # start from start if it's given, otherwise just start from first literal
+        ret = []
+        if start:
+            start_lt = self.literals[self.get_literal_id(start)]
+            self.dfs_visit(start_lt)
+        for lt in self.literals:
+            if lt.color == "white":
+                self.dfs_visit(lt)
+        
+        sorted_elems = sorted(self.literals, key=lambda lt : lt.f)
+        current_list = []
+        for elem in sorted_elems:
+            if not elem.checked:
+                elem.checked = True
+                cur_elem = elem
+                while cur_elem:
+                    current_list.append(cur_elem)
+                    cur_elem.checked = True
+                    cur_elem = cur_elem.parent
+                ret.append(current_list)
+                current_list = []
+        return ret
+
+        
+    
+    def dfs_visit(self, lt):
+        self.dfs_time += 1
+        lt.d = self.dfs_time
+        lt.color = "grey"
+        for v in lt.neighbours:
+            if v.color == "white":
+                v.parent = lt
+                self.dfs_visit(v)
+        lt.color = "BLACK"
+        self.dfs_time += 1
+        lt.f = self.dfs_time
+
 
 
 def main(args):
@@ -119,6 +168,7 @@ def main(args):
     file.close()
 
     G = Implication_Graph()
+    G_inv = Implication_Graph()
 
     # Handling reading lines beyond preamble
     read_mode = False # True after program statement has been read
@@ -142,18 +192,21 @@ def main(args):
                         raise RuntimeError("Program does not support clauses with more than two literals.")
 
                     if len(current_clause) == 1:
-                        G.add_forced(current_clause[0])
+                        raise RuntimeError("Program only supports 2-SAT clauses.")
                     elif len(current_clause) == 2:
                         #  A OR  B gives !A ->  B, !B ->  A (i.e. !( A) ->  B, !( B) ->  A)
                         # !A OR  B gives  A ->  B, !B -> !A (i.e. !(!A) ->  B, !( B) -> !A)
                         #  A OR !B gives !A -> !B,  B ->  A (i.e. !( A) -> !B, !(!B) ->  A)
                         G.add_implication(current_clause[0].get_negation(), current_clause[1])
                         G.add_implication(current_clause[1].get_negation(), current_clause[0])
+                        G_inv.add_implication(current_clause[1], current_clause[0].get_negation())
+                        G_inv.add_implication(current_clause[0], current_clause[1].get_negation())
                     # then reset current_clause
                     current_clause = []
                 else:
                     lt = Literal(line_part)
                     G.add_literal(lt)
+                    G_inv.add_literal(lt)
                     current_clause.append(lt)
         else:
             if line[0] == "c":
@@ -168,6 +221,42 @@ def main(args):
     
     print(G)
     print(G.get_implications())
+    G.dfs_init()
+    G_inv.dfs_init()
+    condensed_graph = G.dfs_get_condensed()
+    print(condensed_graph)
+    sccs = []
+    for lt in condensed_graph:
+        lt_name = lt.name
+        lt_id_in_second = G_inv.get_literal_id(lt_name)
+        lt_in_second = G_inv.literals[lt_id_in_second]
+        if lt_in_second.color == "white":
+            sccs += G_inv.dfs_get_sorted(lt_in_second.name)
+    print(sccs)
+    longest_scc = []
+    for scc in sccs:
+        pos = []
+        neg = []
+        for lt in scc:
+            if lt.name[0] == "-":
+                neg.append(lt.name)
+                if lt.get_negation().name in pos:
+                    print("UNSATISFIABLE")
+                    return
+            else:
+                pos.append(lt.name)
+                if lt.get_negation().name in neg:
+                    print("UNSATISFIABLE")
+                    return
+        if len(scc) > len(longest_scc):
+            longest_scc = scc
+    print("SATISFIABLE")
+    for lt in longest_scc:
+        if lt.name[0] == "-":
+            print(lt.get_negation().name + ": FALSE")
+        else:
+            print(lt.name + ": TRUE")
+    
 
 
     
