@@ -11,7 +11,7 @@ class Literal:
         self.color = None
         self.parent = None
 
-        self.checked = False
+        self.checked = False # used for second DFS
     
     def get_negation(self):
         '''Returns the negation of this literal.'''
@@ -36,6 +36,7 @@ class Implication_Graph:
         self.literals = []
         self.bindings = {}
         self.dfs_time = -1
+        self.dfs_topo_sorted = []
     
     def get_literal_id(self, name:str):
         '''Returns the ID of the given name in the graph, or -1 if it isn't in the graph.'''
@@ -101,7 +102,7 @@ class Implication_Graph:
         self.dfs_time = 0
 
     
-    def dfs_get_literals(self, start:str=None):
+    def dfs_first(self, start:str=None):
         '''Conducts DFS on this graph. Returns a list of DFS trees.'''
         # start from start if it's given, otherwise just start from first literal
         ret = []
@@ -116,7 +117,7 @@ class Implication_Graph:
         
         return ret
     
-    def dfs_get_sorted(self, start:str=None):
+    def dfs_second(self, start:str=None):
         '''Conducts DFS on this graph. Returns the SCCs of the graph.'''
         # start from start if it's given, otherwise just start from first literal
         ret = []
@@ -127,7 +128,7 @@ class Implication_Graph:
             if lt.color == "white":
                 self.dfs_visit(lt)
         
-        sorted_elems = sorted(self.literals, key=lambda lt : lt.f)
+        sorted_elems = self.dfs_topo_sorted
         current_list = []
         for elem in sorted_elems:
             if not elem.checked:
@@ -152,6 +153,7 @@ class Implication_Graph:
         lt.color = "BLACK"
         self.dfs_time += 1
         lt.f = self.dfs_time
+        self.dfs_topo_sorted.append(lt)
 
 
 
@@ -214,14 +216,14 @@ def main(args):
     
     G.dfs_init()
     G_inv.dfs_init()
-    second_dfs_order = G.dfs_get_literals()
+    second_dfs_order = G.dfs_first()
     sccs = []
     for lt in second_dfs_order:
         lt_name = lt.name
         lt_id_in_second = G_inv.get_literal_id(lt_name)
         lt_in_second = G_inv.literals[lt_id_in_second]
         if lt_in_second.color == "white":
-            sccs += G_inv.dfs_get_sorted(lt_in_second.name)
+            sccs += G_inv.dfs_second(lt_in_second.name)
     
     for scc in sccs:
         pos = []
