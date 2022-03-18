@@ -102,7 +102,7 @@ class Implication_Graph:
 
     
     def dfs_get_literals(self, start:str=None):
-        '''Conducts DFS on this graph. Returns a list of condensed graphs.'''
+        '''Conducts DFS on this graph. Returns a list of DFS trees.'''
         # start from start if it's given, otherwise just start from first literal
         ret = []
         if start:
@@ -117,7 +117,7 @@ class Implication_Graph:
         return ret
     
     def dfs_get_sorted(self, start:str=None):
-        '''Conducts DFS on this graph. Returns the possible paths of the graph.'''
+        '''Conducts DFS on this graph. Returns the SCCs of the graph.'''
         # start from start if it's given, otherwise just start from first literal
         ret = []
         if start:
