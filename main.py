@@ -1,5 +1,4 @@
 import argparse
-from collections import deque
 
 
 class Literal:
@@ -66,9 +65,6 @@ class Implication_Graph:
         i2 = self.get_literal_id(lt2.name)
         if (i1 >= 0) and (i2 >= 0) and not (i1 == i2):
             self.literals[i1].add_neighbour(self.literals[i2])
-        else:
-            raise RuntimeError("Invalid add_implication operation of " + lt1.name + " and " + lt2.name + ". We get i1=" + str(i1) + " and i2=" + str(i2) + ".", self.literals)
-
 
     def get_implications(self)->str:
         '''Returns a readable String of the implications'''
@@ -105,7 +101,7 @@ class Implication_Graph:
         self.dfs_time = 0
 
     
-    def dfs_get_condensed(self, start:str=None):
+    def dfs_get_literals(self, start:str=None):
         '''Conducts DFS on this graph. Returns a list of condensed graphs.'''
         # start from start if it's given, otherwise just start from first literal
         ret = []
@@ -118,7 +114,6 @@ class Implication_Graph:
                 self.dfs_visit(lt)
                 ret.append(lt)
         
-        #return sorted(self.literals, reverse=True, key=lambda lt : lt.f)
         return ret
     
     def dfs_get_sorted(self, start:str=None):
@@ -146,8 +141,6 @@ class Implication_Graph:
                 current_list = []
         return ret
 
-        
-    
     def dfs_visit(self, lt):
         self.dfs_time += 1
         lt.d = self.dfs_time
@@ -219,21 +212,17 @@ def main(args):
                 m = int(line_parts[3]) # number of clauses
                 read_mode = True
     
-    print(G)
-    print(G.get_implications())
     G.dfs_init()
     G_inv.dfs_init()
-    condensed_graph = G.dfs_get_condensed()
-    print(condensed_graph)
+    second_dfs_order = G.dfs_get_literals()
     sccs = []
-    for lt in condensed_graph:
+    for lt in second_dfs_order:
         lt_name = lt.name
         lt_id_in_second = G_inv.get_literal_id(lt_name)
         lt_in_second = G_inv.literals[lt_id_in_second]
         if lt_in_second.color == "white":
             sccs += G_inv.dfs_get_sorted(lt_in_second.name)
-    print(sccs)
-    longest_scc = []
+    
     for scc in sccs:
         pos = []
         neg = []
@@ -248,18 +237,37 @@ def main(args):
                 if lt.get_negation().name in neg:
                     print("UNSATISFIABLE")
                     return
-        if len(scc) > len(longest_scc):
-            longest_scc = scc
     print("SATISFIABLE")
-    for lt in longest_scc:
+
+    bindings = {}
+    variables = []
+    for lt in G.literals:
+        variable = lt.name
         if lt.name[0] == "-":
-            print(lt.get_negation().name + ": FALSE")
+            variable = lt.get_negation().name
+        bindings[variable] = None
+        if variable not in variables:
+            variables.append(variable)
+    variables.sort()
+
+    # override
+    for i in range(len(sccs)-1, -1, -1):
+        scc = sccs[i]
+        for lt in scc:
+            variable = lt.name
+            value = True
+            if lt.name[0] == "-":
+                variable = lt.get_negation().name
+                value = False
+            if bindings[variable] is None:
+                bindings[variable] = value
+    final_report = ""
+    for var in variables:
+        if bindings[var]:
+            final_report += "1 "
         else:
-            print(lt.name + ": TRUE")
-    
-
-
-    
+            final_report += "0 "
+    print(final_report)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
